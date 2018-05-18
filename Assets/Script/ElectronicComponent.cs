@@ -11,7 +11,7 @@ public class ElectronicComponent : MonoBehaviour {
 		public Line() {
 		}
 		public Line(Line copyFrom) {
-			this.components = copyFrom.components;
+			this.components = new List<ElectronicComponent>(copyFrom.components);
 			this.isLoop = copyFrom.isLoop;
 			this.hasBubble = copyFrom.hasBubble;
 		}
@@ -65,14 +65,13 @@ public class ElectronicComponent : MonoBehaviour {
 			e.isOn = false;
 		}
 	}
+	public List<Line> lines;
 	public void UpdateLines() {
-		TurnOffAll();
 		var lines = this.GetLines();
 		bool hasLoop = lines.Find(l => l.isLoop) != null;
 		bool hasShort = lines.Find(l => l.isLoop && !l.hasBubble) != null;
 		bool win = lines.Find(l => l.isLoop && l.hasBubble) != null;
 		if (hasLoop) {
-			this.TurnOn();
 			if (hasShort) {
 				characterX.instance.UpdateState(false);
 			}
@@ -80,13 +79,21 @@ public class ElectronicComponent : MonoBehaviour {
 				characterX.instance.UpdateState(true);
 			}
 		}
+		TurnOffAll();
+		foreach (var line in lines) {
+			if (line.isLoop) {
+				foreach (var c in line.components) {
+					c.isOn = true;
+				}
+			}
+		}
+		this.lines = lines;
 	}
 	public List<Line> GetLines() {
 		List<Line> lines = new List<Line>();
 		foreach (var c in this.connects) {
 			var line = new Line();
 			line.components = new List<ElectronicComponent>() {this};
-			lines.Add(line);
 			c.FillLine(lines, line);
 		}
 		return lines;
@@ -97,31 +104,24 @@ public class ElectronicComponent : MonoBehaviour {
 			baseLine.hasBubble = true;
 		}
 		
-		bool isFirst = true;
-		for (int i = 0; i < this.connects.Count; i++) {
-			var c = this.connects[i];
-			if (baseLine.components.Contains(c)) {
-				if (c == baseLine.components[0] && c != baseLine.components[baseLine.components.IndexOf(this) - 1]) {
-					baseLine.isLoop = true;
-				}
+		int backCount = 0;
+		foreach (var next in this.connects) {
+			var newLine = new Line(baseLine);
+			if (next == newLine.components[newLine.components.Count - 2]) {
+				backCount++;
 				continue;
 			}
-			var line = baseLine;
-			if (!isFirst) {
-				line = new Line(baseLine);
-				lines.Add(line);
+			if (newLine.components.Contains(next)) {
+				if (next == newLine.components[0]) {
+					newLine.isLoop = true;
+				}
+				lines.Add(newLine);
+				continue;
 			}
-			isFirst = false;
-			c.FillLine(lines, line);
+			next.FillLine(lines, newLine);
 		}
-	}
-	public void TurnOn() {
-		if (this.isOn) {
-			return;
-		}
-		this.isOn = true;
-		foreach (var c in this.connects) {
-			c.TurnOn();
+		if (backCount == this.connects.Count) {
+			lines.Add(baseLine);
 		}
 	}
 }
